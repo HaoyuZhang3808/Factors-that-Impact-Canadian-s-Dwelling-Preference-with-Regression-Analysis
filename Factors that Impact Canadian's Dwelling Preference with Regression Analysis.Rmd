@@ -1,0 +1,364 @@
+---
+title: "Factors that Impact Canadian's Dwelling Preference with Regression Analysis"
+author: "Bowen Han, Haoyu Zhang"
+date: "2020/10/20"
+output: pdf_document
+---
+
+# Abstract
+
+This report aims at finding the association between people’s dwelling preferences and their fami-ly conditions using a logistic regression model. Countrywide data of people’s dwelling type from the Canadian General Social Survey(GSS) in 2017 is referenced and analyzed in a logistic regres-sion model. The datasets of possible attributes such as marital status and family income are used in the model to predict the odds of one living in a single-detached house. It is shown from the model that one’s marital status and family income both contributed somewhat significantly to the odds of one living in a house. 
+
+# Introduction
+
+In the real-estate business, advertising and consumer targeting depend highly on marketing anal-ysis. Understanding what attributes potentially impact a person’s choice of dwelling type brings efficiency to promotion. Therefore, building a logistic model to predict the odds of one’s choice on household type is a crucial step to assist the real-estate companies better understand the cus-tomers’ needs.
+A sound marketing analysis project calls for a dependable survey design and database. This study gathers data from Canadian General Social Survey(GSS) in 2017. GSS is an annual nationwide cross-sectional survey that aims at monitoring the living condition of Canadian citizens. GSS 2017, a telephone survey with geopolitical sampling stratification, is conducted from February the 2nd to November 30th, 2017. The questionnaire involves a various aspects of a citizens living condition with a major focus on family condition and childcare. 
+
+Datasets of interest include the respondent’s dwelling type, marital status, number of children in the household, and family income range. The association between dwelling type and the rest three variables is analyzed in a logistic model to predict the odds of one choosing to live in a sin-gle-detached house. From the model, a majority of the independent variables show a correlation to the response variable to a certain extent with family income being the most critical one. People who make more than 125k per year are very likely to live in a house rather than in an apartment. As regards children in the household, people with more children tend to live in a house more fre-quently.
+Note that, a logistic model can only be used to predict the odds of a certain situation. Although it can help predict one’s personal choice of dwelling type, there is more variable that alters one's choice. In order to maintain the statistical significance of the model, a limited number of varia-bles are analyzed, which could lead to a limited reference value of the model. 
+
+
+# GSS Methodology and Data Assessment
+
+Canadian General Social Survey is a countrywide survey project aims at monitoring Canadian citizens’ living conditions and the changes in their living conditions in response to government policies. It is done on an annual basis with an assigned theme for each year. GSS 2017 focuses on the respondent’s family, which is a topic done each five years to monitor alternations. 
+The sampling strategy employed is stratification base on geographic regions. Each province and 14 severely populated regions (such as Toronto, Montreal, etc.) are considered as one stratum. Note that the three northern territories are excluded from the research. The population of the re-search is all the citizens above 15 years old countrywide with the three territories excluded. The survey frame used in this research is a list of telephone and cell phone numbers that is accessible to Statistics Canada from different sources. Researchers reach the respondents by telephone sur-vey questions. Roughly 40,000 survey calls are planned to be made and the desired responses (aka. sample size) are 20,000. In terms of the questionnaire design, the questions are divided into a section with various selective questions that allow the respondents to skip unrelated questions.
+
+The strength of GSS data is its sampling reliability because to obtain a set of a random and repre-sentative sample is one of the major challenges in any statistical analysis. As mentioned above, the samples are collected nationwide with almost no discrimination to a certain group. Although the north three territories are excluded, the people there may have a different lifestyle which might become outliers if included in the GSS. In addition, the exclusion of north territories caus-es no major harm to this study as regards to the limited population and low marketing competi-tion.
+
+Using a telephone survey to reach the respondent is an efficient way to make sure the questions are completely delivered. However, considering the large volume of the questionnaire, it could lead to a low response rate (52%). This approach can be severely costly but the cost of the survey is not at the concern of this study. 
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#### Preamble ####
+# Purpose: The purpose of this code is to clean-up the 2017 GSS data obtained 
+# from the U of T library. That data is available to U of T students, but it needs 
+# to be put into a tidy format before it can be analysed. This code does that.
+# The main issue is that the data are released with codes for variables, whereas,
+# we want the variable. e.g. sex is 1 or 2, but we want sex is female or male. (This
+# sounds trite in that case, but gets more difficult with more involved variables.)
+# So we create a dictionary type dataset that has the variable names and their 
+# possible values. In that we embed some R code that will do a replacement. We 
+# then apply that dataset to the raw dataset. Finally we do all the usual cleaning.
+# to the dataset. You will end up with a dataset called gss.csv.
+# Authors: Rohan Alexander and Sam Caetano
+# Contact: rohan.alexander@utoronto.ca
+# Date: 7 October 2020
+# License: MIT
+# Pre-reqs: You need to have downloaded the data from the library. To do that: 
+## 1. Go to: http://www.chass.utoronto.ca/
+## 2. Data centre --> UofT users or http://dc.chass.utoronto.ca/myaccess.html
+## 3. Click SDA @ CHASS, should redirect to sign in. Sign in.
+## 4. Continue in English (you're welcome to use the French, but we probably can't
+## help you too much).
+## 5. Crtl F GSS, click
+## 6. Click "Data" on the one you want. We used 2017, but you may want a different 
+## wave. In particular the General Social Survey on social identity (cycle 27), 
+## 2013 has some variables on voter participation if you're into that sort of 
+## thing. You're welcome to pick any year but this code applies to 2017.
+## 7. Click download
+## 8. Select CSV data file, data definitions for STATA (gross, but stick with it for now).
+## 9. Can select all variables by clicking button next to green colored "All". Then continue.
+## 10. Create the files, download and save
+# Check: 
+## You WILL need to change the raw data name. Search for .csv - line 41
+## You may need to adjust the filepaths depending on your system. Search for: read_
+
+
+#### Workspace set-up ####
+library(janitor)
+library(tidyverse)
+
+# Load the data dictionary and the raw data and correct the variable names
+raw_data <- read_csv("AAyqesCv.csv")
+dict <- read_lines("gss_dict-1.txt", skip = 18) # skip is because of preamble content
+# Now we need the labels because these are the actual responses that we need
+labels_raw <- read_file("gss_labels-1.txt")
+
+
+#### Set-up the dictionary ####
+# What we want is a variable name and a variable definition
+variable_descriptions <- as_tibble(dict) %>% 
+  filter(value!="}") %>% 
+  mutate(value = str_replace(value, ".+%[0-9].*f[ ]{2,}", "")) %>% 
+  mutate(value = str_remove_all(value, "\"")) %>% 
+  rename(variable_description = value) %>% 
+  bind_cols(tibble(variable_name = colnames(raw_data)[-1]))
+
+# Now we want a variable name and the possible values
+labels_raw_tibble <- as_tibble(str_split(labels_raw, ";")[[1]]) %>% 
+  filter(row_number()!=1) %>% 
+  mutate(value = str_remove(value, "\nlabel define ")) %>% 
+  mutate(value = str_replace(value, "[ ]{2,}", "XXX")) %>% 
+  mutate(splits = str_split(value, "XXX")) %>% 
+  rowwise() %>% 
+  mutate(variable_name = splits[1], cases = splits[2]) %>% 
+  mutate(cases = str_replace_all(cases, "\n [ ]{2,}", "")) %>%
+  select(variable_name, cases) %>% 
+  drop_na()
+
+# Now we have the variable name and the different options e.g. age and 0-9, 10-19, etc.
+labels_raw_tibble <- labels_raw_tibble %>% 
+  mutate(splits = str_split(cases, "[ ]{0,}\"[ ]{0,}"))
+
+# The function sets up the regex (I know, I know, but eh: https://xkcd.com/208/)
+add_cw_text <- function(x, y){
+  if(!is.na(as.numeric(x))){
+    x_new <- paste0(y, "==", x,"~")
+  }
+  else{
+    x_new <- paste0("\"",x,"\",")
+  }
+  return(x_new)
+}
+
+# The function will be in the row, but it'll get the job done
+cw_statements <- labels_raw_tibble %>% 
+  rowwise() %>% 
+  mutate(splits_with_cw_text = list(modify(splits, add_cw_text, y = variable_name))) %>% 
+  mutate(cw_statement = paste(splits_with_cw_text, collapse = "")) %>% 
+  mutate(cw_statement = paste0("case_when(", cw_statement,"TRUE~\"NA\")")) %>% 
+  mutate(cw_statement = str_replace(cw_statement, ",\"\",",",")) %>% 
+  select(variable_name, cw_statement)
+# So for every variable we now have a case_when() statement that will convert 
+# from the number to the actual response.
+
+# Just do some finally cleanup of the regex.
+cw_statements <- 
+  cw_statements %>% 
+  mutate(variable_name = str_remove_all(variable_name, "\\r")) %>% 
+  mutate(cw_statement = str_remove_all(cw_statement, "\\r"))
+
+
+#### Apply that dictionary to the raw data ####
+# Pull out a bunch of variables and then apply the case when statement for the categorical variables
+gss <- raw_data %>% 
+  select(
+         dwelc,
+         marstat,
+         chh0014c,
+         famincg2) %>% 
+  mutate_at(vars(dwelc:famincg2), .funs = funs(ifelse(.>=96, NA, .))) %>% 
+  mutate_at(.vars = vars(dwelc:famincg2),
+            .funs = funs(eval(parse(text = cw_statements %>%
+                                      filter(variable_name==deparse(substitute(.))) %>%
+                                      select(cw_statement) %>%
+                                      pull()))))
+
+
+# Fix the names
+gss <- gss %>% 
+  clean_names() %>% 
+  rename(dwelling_type = dwelc,
+         marry_status = marstat,
+         number_of_children = chh0014c,
+         family_income = famincg2) 
+backup <- gss
+
+#### Clean up ####
+#Convert select answer to Na
+gss <- gss %>% 
+  mutate_at(vars(dwelling_type:family_income), 
+            .funs = funs(ifelse(.=="Valid skip"|.=="Refusal"|.=="Not stated"|.=="Don't know", "NA", .))) 
+#Convert top 1/0
+gss <- gss %>% 
+  mutate_at(vars(dwelling_type:family_income), 
+            .funs = funs(ifelse(.=="Single detached house", 1, .)))
+gss <- gss %>% 
+  mutate_at(vars(dwelling_type:family_income), 
+            .funs = funs(ifelse(.=="Low-rise apartment (less than 5 stories)"|.=="High-rise apartment (5 or more stories)"|.=="Other", 0, .)))
+write_csv(gss, "gss.csv")
+
+
+```
+
+```{r,echo=FALSE,message=FALSE}
+library(tidyverse)
+library(survey)
+data<-read.csv("gss.csv")
+
+####Build a model to predict housing type with marry status, number of children and family income.####
+#If there are any NAs, drop it
+data<-na.omit(data)
+backup<-na.omit(backup)
+
+
+
+#SRS
+#Assuming Population N=22000
+N=22000
+n=length(data$dwelling_type)
+fpc.srs = rep(N, n)
+example.design.srs <- svydesign(id=~1, data=data, fpc=fpc.srs)
+#Creat logistic regression model
+svyglm.srs.logit <- svyglm(dwelling_type~marry_status+number_of_children+family_income, example.design.srs, family="binomial")
+
+
+
+
+```
+# Data 
+
+
+The data cleaning process is conducted with assistance from the University of Toronto professors Rohan Alexander and Sam Caetano. Data cleaning is a crucial step since the raw data contains over 20k observations and 200 variables. Variables studied in this research are chosen carefully such that only responses from general questions(all respondents are eligible to answer) are used. This is a crucial step to avoid unwanted elimination due to the answer to a selective question. For example, instead of choosing ‘The number of respondent’s children in the household’, the ques-tion ‘The number of children in the household’  would be more appropriate. Apart from that, all responses with a ‘valid skip’, ‘don’t know’, ‘refusal’ or no response are considered not applicable and therefore eliminated from the model construction. 
+
+```{r, echo=FALSE,message=FALSE}
+library("tidyverse")
+p <- ggplot(data = backup,
+  mapping = aes(
+    x = dwelling_type, 
+    y = n, 
+    fill = dwelling_type))
+p + geom_col() +
+  labs(y = "Count")+
+  theme(axis.text.x = element_text(angle=90),
+        plot.title=element_text(colour='light green', hjust=0.5,face='bold'))+
+  labs(title = "Figure_1.1Distribution of House Type")
+```
+Since the objective is to estimate the odds of one prefers to live in a house, the responses to the question ‘What is your dwelling type’ is altered into a binary response with 1 representing ‘the respondent lives in a single-detached house’ and 0 - ‘the respondent does not live in a single-detached house’. Input variables used to predict the odds outcome are the respondents’ marital status, number of children in household and family income range. Marital status is a nominal cat-egorical variable, family income is an ordinal variable. As regards the number of children in the household, if the respondents have more than 3 kids in the house, the response will be recorded as ‘3 or more children’. Hence, this variable is also considered to be an ordinal variable.
+In order to put these variables in a logistic model, dummy variables are employed. One of the op-tions for each question are taken as a baseline to calculate the intercept (beta0). The other inputs are set to be either 0 or 1. Take marital status as an example, for option ‘divorced’, if the re-spondent is divorced, then the input would be 1 for this respondent and the other options regard-ing marital status will be 0 for him/her.
+
+# Model
+
+This report mainly focuses on modeling dwelling type by marital status, the number of children, and annual family income. All those three predictors can be naturally related to house type in people’s thinking. People with more children usually have a higher chance to live in a house instead of an apartment, since they may need more living area. Even so, because of the unknown impact of marital status and family income level, the prediction of dwelling type is still arguable right now. The categorical variables are followed in the GSS dataset.
+
+A Binary logistic regression model is fitted on the dataset. 
+
+The formula is shown below:
+----------------------
+$log(\frac{p}{1-p})= \beta_0+\beta_1marry_statusLiving common-law+\beta_2marry_statusMarried+\beta_3marry_statusSeparated+\beta_4marry_statusSingle,never married+\beta_5marry_statusWidowed+\beta_6number_of_childrenOne child+\beta_7number_of_childrenThree or more children+\beta_8number_of_childrenTwo children+\beta_9family_income 125,000 and more+\beta_{10}family_income25,000 to 49,999+\beta_{11}family_income50,000 to 74,999+\beta_{12}family_income75,000 to 99,999+\beta_{13}family_incomeLess than 25,000$
+  
+    
+Table 1.2 Each Variable in Formula
+---------------------
+```{r echo=FALSE,message=FALSE}
+res<- data.frame(p="The probability of a respondent lives in house.",marry_status="Marital status of respondents, it could be 'Married','Single,never married','Living common-law','Divorced','Widowed'.",number_of_children='Number of children in the household, it could be "No child","One child","Two children","Three or more children".',family_income="The net annual income of the respondent's family, it could be 'Less than $25,000','$25,000 to $49,999','$50,000 to $74,999','$75,000 to $99,999','$100,000 to $ 124,999','$125,000 and more'.")
+knitr::kable(res,format = "markdown")
+```
+All variable from marry_statusLiving common-law to family_incomeLess than 25,000 are dummy variables. So $\beta_0$ does have meaning in this case.
+Values show in model result below:
+------------------------
+```{r,echo=FALSE,message=FALSE}
+summary(svyglm.srs.logit) 
+```
+
+
+  
+Each $\beta$ value:
+------------------------  
+$\beta_0$ : 0.48612  When respondent is divorced with no children and annual income level as 100,000 to 124,999 the log odds of living in house is 0.48612. 
+  
+$\beta_1$ : 0.33439 Compare with divorced respondents, the log odds of living in house of people with status of Living common-law have an increase of 0.33439.
+  
+$\beta_2$ : 0.91444 Compare with divorced respondents, the log odds of living in house of people with status of Married have an increase of 0.91444. 
+
+$\beta_3$ : 0.33131 Compare with divorced respondents, the log odds of living in house of people with status of Separated have an increase of 0.33131.  
+
+$\beta_4$ ; -0.07473  Compare with divorced respondents, the log odds of living in house of people with status of Single, never married have a decrease of 0.07473.
+
+$\beta_5$ ; 0.46621 Compare with divorced respondents, the log odds of living in house of people with status of Widowed have an increase of 0.46621.
+
+$\beta_6$ ; -0.05522 Compare with respondents who have no child, the log odds of living in house of people with one child have a decrease of 0.05522. 
+
+$\beta_7$ ; 0.39017   Compare with respondents who have no child, the log odds of living in house of people with Three or more children have an increase of 0.39017. 
+$\beta_8$ ; 0.29181 Compare with respondents who have no child, the log odds of living in house of people with two children have an increase of 0.29181.
+
+$\beta_9$ ; 0.21081  Compare with respondents who have income between 100,000 and 124,999, the log odds of living in house of people with 125,000 and more have an increase of 0.21081.
+
+$\beta_{10}$ ; -0.83374   Compare with respondents who have income between 100,000 and 124,999, the log odds of living in house of people with income of 25,000 to 49,999 have a decrease of 0.83374.
+
+$\beta_{11}$ ; -0.56250  Compare with respondents who have income between 100,000 and 124,999, the log odds of living in house of people with income of 50,000 to 74,999 have a decrease of 0.5625.
+
+$\beta_{12}$ ; -0.27626  Compare with respondents who have income between 100,000 and 124,999, the log odds of living in house of people with income of 75,000 to 99,999 have a decrease of 0.27626.
+
+$\beta_{13}$ ; -1.08638  Compare with respondents who have income between 100,000 and 124,999, the log odds of living in house of people with income less than 25,000 have a decrease of 1.08638.
+
+# Justification of the Model
+ 
+According to the chart above, the p-value of all variables is much lower than 0.05. Then, all variables reject to hypothesis test, which means they more likely to not be zero. Thus, all variables correlate with response. However, there are two special variables: “Single, never married” and “one-child”. These two variables have a relatively lower value and a higher p-value than all other variables. Therefore, these two variables can be considered as weaker predictors.
+```{r,echo=FALSE,message=FALSE}
+library(pROC)
+par(pty="s")
+roc(data$dwelling_type, svyglm.srs.logit$fitted.values,
+    percent=TRUE, plot=TRUE,legacy.axes=TRUE,xlab="False Positive Percentage",ylab="True Postive Percentage",col="#289eb4",lwd=3,print.auc=TRUE,main = "Figure2_ROC Curve of Logistic Model")
+```
+As Figure 2 shows, AUC in this ROC curve is 70.1% which means there are in total 70.1% of responses that can be predicted by the logistic model. Since the percentage 70.1% is much higher than 50% so <dwelling type~marry_status+number_of_children+family_income> can be considered as a strong prediction model here. However, there are lots of things that can be improved to increase accuracy. Detailed improvement will be shown in the discussion part.
+
+
+
+# Results And Discussion
+Base on the model, all variables have low p-values less than 0.05, meaning that they all show cor-relation with the response variable. 
+
+```{r, echo=FALSE,message=FALSE}
+p <- ggplot(data = backup,
+  mapping = aes(
+    x = dwelling_type, 
+    y = n,
+    fill = marry_status))
+p + geom_col()+
+  theme(axis.text.x = element_text(angle=90),
+        plot.title=element_text(colour='purple', hjust=0.5,face='bold'))+
+  labs(title = "Figure3_Marital Status in House Type")
+```
+Considering the marital status of the respondents, the divorced and the single are the two groups of people who are least likely to live in a house. On the contrary, people who are legally married (odds = 4.06, p = 0.79) have odds that are e^0.9144 times more likely to live in a house than someone who is divorced. With this information, a prediction can be made that if a couple in-tends to purchase a property, a house is highly likely to be their choice. 
+
+```{r, echo=FALSE,message=FALSE}
+
+p <- ggplot(data = backup,
+  mapping = aes(
+    x = dwelling_type, 
+    y = n,
+    fill = family_income))
+p + geom_col()+
+  theme(axis.text.x = element_text(angle=90),
+        plot.title=element_text(colour='light blue', hjust=0.5,face='bold'))+
+  labs(title = "Figure4_Income occupation in House Type")
+```
+Family annual income is another variable that can significantly affect the odds of one living in a house. A general trend can be captured that as the respondent’s family income increases from one range to another, the odds of him/her lives in a house increases. The odds of someone who makes 125k or more(odds = 2.01, p = 0.67) is e^1.2972 times higher than someone who only makes less than 25k(odds = 0.54, p = 0.35). This finding is valuable because when an agent encounters a customer with a limited budget, purchasing an apartment is probably the best choice for him/her. According to figure(), people who make 125k or more per year take a large portion of people liv-ing in a single-detached house. In the contrast, we can barely see them in the bar for the other options. From that, an association claim can be made ‘People who make more money are more likely to live in a house.’.
+In terms of the number of children in the household, if one has no child in his/her household, the odds of him/her lives in a house are e^0.39017 times less likely compared to people who are with 3 or more kids. Although this variable does have an influence on the person's choice of dwelling type, the effect is minor compared to other variables. This variable is ordinal (or somewhat a ratio variable) but the increase in a number of children shows the limited level of association with the person’s housing preference. For practical purposes, if the customer is in a legal marriage and has 3 or more kids in the household, the probability of him/her lives in a house is 86%(odds = 5.99). 
+
+
+Note that, ‘p’ in the text refers to the possibility that the respondent lives in a house if the dis-cussed condition applies to the person while the rest of the responses are set to baseline level(if not mentioned specifically), that is, ‘divorced’ for marital status, ‘no child in the household’, and ‘100,000 to 124,999 / year’ for annual family income respectively.
+
+# Error Analysis and Discussion
+
+Since the details about the datasets and results are thoroughly discussed in the previous sections, the discussion will mainly focus on the weaknesses of this re-search.
+
+Aspects of Data
+Data used in this survey gathers data from Canadian General Social Survey(GSS) in 2017. GSS did an impressive job to provide reliable results that can efficiently estimate the distribution of the Canadian population country-wide. However, a sound statistical analysis calls for error analy-sis. Non-response bias is critical in this survey project due to its high volumes in the question-naire. Partial non-response indicates the rate that one respondent did not finish all the questions in the survey. Whereas no response represents the incompletion of the survey due to a language barrier or refusal to answer. The response rate is 0.52 in this project, which is exceptional as re-gard its huge sample. The north three territories are absent from the sampling frame. This makes the sample fail to represent the people there. In future studies, an ideal dataset should include all the geographical areas in the nation so that no groups are excluded from the research.
+
+Aspects of Model Construction and Justification
+For the sake of questionnaire design, the majority of questions in the survey have categorical data structures. This limits the flexibility of regression model construction to a large extent. However, considering the objectives of this study is to predict the odds or probability of one’s dwelling preference base on his/her personal situation, a logistic model gets the job done in an exceptional way. The model turns out valid and shows strong correlations between the input and output vari-ables.
+
+The model has an AUC of 0.701, showing that 70% of the cases can be efficiently predicted by it. In order to increase the validity of the model in the future, more variables that show critical impact on one’s housing choice should be included. For instance, the pricing and taxes of proper-ties in the respondent’s region and the population density. Combining with these factors, the lo-gistic model will have a more efficient estimate for one’s odds to live in a house.
+
+# All data can be found
+https://github.com/HaoyuZhang3808/Factors-that-Impact-Canadian-s-Dwelling-Preference-with-Regression-Analysis.git
+
+# Citation
+R Core Team (2020). R: A language and environment for statistical computing. R Foundation for Statistical Computing,
+  Vienna, Austria. URL https://www.R-project.org/.
+   
+Xavier Robin, Natacha Turck, Alexandre Hainard, Natalia Tiberti, Frédérique Lisacek, Jean-Charles Sanchez and Markus Müller
+  (2011). pROC: an open-source package for R and S+ to analyze and compare ROC curves. BMC Bioinformatics, 12, p. 77.  DOI:
+  10.1186/1471-2105-12-77 <http://www.biomedcentral.com/1471-2105/12/77/>
+  
+Hadley Wickham, Jim Hester and Romain Francois (2018). readr: Read Rectangular Text Data. R package version 1.3.1.
+  https://CRAN.R-project.org/package=readr
+   
+"Welcome to the {tidyverse}",Hadley Wickham, Mara Averick, Jennifer Bryan, Winston Chang, Lucy D'Agostino McGowan, Romain Fran
+
+    
+Sam Firke (2020). janitor: Simple Tools for Examining and Cleaning Dirty Data. R package version 2.0.1.
+  https://CRAN.R-project.org/package=janitor
+  
+  T. Lumley (2020) "survey: analysis of complex survey samples". R package version 4.0.
+
+  T. Lumley (2004) Analysis of complex survey samples. Journal of Statistical Software 9(1): 1-19
+
+  T. Lumley (2010) Complex Surveys: A Guide to Analysis Using R. John Wiley and Sons.
+    
+gss_cleaning-1.R,rohanalexander,https://rohanalexander.com/sta304.html
